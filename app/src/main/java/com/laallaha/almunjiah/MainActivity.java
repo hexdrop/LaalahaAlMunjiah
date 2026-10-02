@@ -1,6 +1,8 @@
 package com.laallaha.almunjiah;
 
 import android.app.Activity;
+import android.app.DownloadManager;
+import android.app.AlertDialog;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.location.Location;
@@ -21,6 +23,18 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import android.content.Intent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
+import androidx.core.content.FileProvider;
+import android.net.Uri;
+import android.os.Environment;
 
 public class MainActivity extends Activity {
     private TextView prayerNameView;
@@ -74,6 +88,8 @@ prayerHandler.postDelayed(this, 1000);
     private static final int EMERALD = Color.rgb(18, 115, 85);
     private static final int EMERALD_DARK = Color.rgb(10, 79, 59);
     private static final int EMERALD_SOFT = Color.rgb(231, 244, 238);
+    private static final String UPDATE_URL =
+            "https://raw.githubusercontent.com/hexdrop/LaalahaAlMunjiah/main/update.json";
 
     private static final int GOLD = Color.rgb(190, 155, 75);
     private static final int GOLD_SOFT = Color.rgb(248, 241, 220);
@@ -86,6 +102,7 @@ prayerHandler.postDelayed(this, 1000);
     private static final int BORDER = Color.rgb(228, 231, 226);
 
     private LinearLayout content;
+    private long updateDownloadId = -1;
 
     private TextView continueSurahView;
     private TextView continueVerseView;
@@ -103,8 +120,19 @@ prayerHandler.postDelayed(this, 1000);
 
         getWindow().setStatusBarColor(EMERALD_DARK);
         getWindow().setNavigationBarColor(CREAM);
+        buildHome();
+        checkForUpdate();
+        registerReceiver(
+                updateDownloadReceiver,
+                new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                Context.RECEIVER_NOT_EXPORTED
+        );
 
         buildHome();
+        checkForUpdate();
+        registerReceiver(updateDownloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+        checkForUpdate();
+        registerReceiver(updateDownloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
         PrayerAlarmScheduler.scheduleNextPrayers(this);
 
 
@@ -5012,4 +5040,205 @@ private LinearLayout.LayoutParams navWeight() {
                         .density
         );
     }
+
+    private final BroadcastReceiver updateDownloadReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (!DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) {
+                return;
+            }
+
+            long downloadId = intent.getLongExtra(
+                    DownloadManager.EXTRA_DOWNLOAD_ID,
+                    -1
+            );
+
+            if (downloadId != updateDownloadId) {
+                return;
+            }
+
+            try {
+                DownloadManager downloadManager =
+                        (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+
+                DownloadManager.Query query =
+                        new DownloadManager.Query().setFilterById(downloadId);
+
+                android.database.Cursor cursor = downloadManager.query(query);
+
+                if (cursor != null && cursor.moveToFirst()) {
+                    int statusIndex = cursor.getColumnIndex(
+                            DownloadManager.COLUMN_STATUS
+                    );
+
+                    int status = cursor.getInt(statusIndex);
+
+                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                        int localUriIndex = cursor.getColumnIndex(
+                                DownloadManager.COLUMN_LOCAL_URI
+                        );
+
+                        String localUri = cursor.getString(localUriIndex);
+
+                        if (localUri != null && localUri.startsWith("file://")) {
+                            File apkFile = new File(Uri.parse(localUri).getPath());
+
+                            if (apkFile.exists()) {
+                                Uri apkUri = FileProvider.getUriForFile(
+                                        MainActivity.this,
+                                        getPackageName() + ".fileprovider",
+                                        apkFile
+                                );
+
+                                Intent installIntent = new Intent(
+                                        Intent.ACTION_VIEW
+                                );
+                                installIntent.setDataAndType(
+                                        apkUri,
+                                        "application/vnd.android.package-archive"
+                                );
+                                installIntent.addFlags(
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                );
+                                installIntent.addFlags(
+                                        Intent.FLAG_ACTIVITY_NEW_TASK
+                                );
+
+                                startActivity(installIntent);
+                            }
+                        }
+                    }
+                }
+
+                if (cursor != null) {
+                    cursor.close();
+                }
+
+            } catch (Exception e) {
+                android.widget.Toast.makeText(
+                        MainActivity.this,
+                        "تعذر فتح ملف التحديث للتثبيت",
+                        android.widget.Toast.LENGTH_LONG
+                ).show();
+            }
+        }
+    };
+
+    private void downloadUpdate(String downloadUrl) {
+        try {
+            DownloadManager downloadManager =
+                    (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+
+            Uri uri = Uri.parse(downloadUrl);
+
+            DownloadManager.Request request =
+                    new DownloadManager.Request(uri);
+
+            request.setTitle("لعلها المنجيه");
+            request.setDescription("جاري تنزيل التحديث...");
+            request.setNotificationVisibility(
+                    DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+            );
+            request.setDestinationInExternalFilesDir(
+                    this,
+                    Environment.DIRECTORY_DOWNLOADS,
+                    "LaalahaAlMunjiah-update.apk"
+            );
+
+            updateDownloadId = downloadManager.enqueue(request);
+
+            android.widget.Toast.makeText(
+                    this,
+                    "بدأ تنزيل التحديث",
+                    android.widget.Toast.LENGTH_SHORT
+            ).show();
+
+        } catch (Exception e) {
+            android.widget.Toast.makeText(
+                    this,
+                    "تعذر بدء تنزيل التحديث",
+                    android.widget.Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void checkForUpdate() {
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+
+            try {
+                URL url = new URL(UPDATE_URL);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(10000);
+                connection.setUseCaches(false);
+
+                if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                    return;
+                }
+
+                BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)
+                );
+
+                StringBuilder response = new StringBuilder();
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+
+                reader.close();
+
+                JSONObject update = new JSONObject(response.toString());
+                int latestVersionCode = update.optInt("versionCode", 0);
+
+                if (latestVersionCode > getAppVersionCode()) {
+                    runOnUiThread(() -> {
+                        String title = update.optString("title", "تحديث جديد متاح");
+                        String changelog = update.optString("changelog", "يتوفر إصدار جديد من التطبيق.");
+
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle(title)
+                                .setMessage(changelog)
+                                .setNegativeButton("لاحقًا", null)
+                                .setPositiveButton("تحديث الآن", (dialog, which) -> {
+                                    String downloadUrl = update.optString("downloadUrl", "");
+                                    if (!downloadUrl.isEmpty()) {
+                                        downloadUpdate(downloadUrl);
+                                    }
+                                })
+                                .show();
+                    });
+                }
+
+            } catch (Exception ignored) {
+                // Update checking must never affect normal app operation.
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+        }).start();
+    }
+
+
+
+    private long getAppVersionCode() {
+        try {
+            android.content.pm.PackageInfo packageInfo =
+                    getPackageManager().getPackageInfo(getPackageName(), 0);
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                return packageInfo.getLongVersionCode();
+            }
+
+            return packageInfo.versionCode;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+
 }
