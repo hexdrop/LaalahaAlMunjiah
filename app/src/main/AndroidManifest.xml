@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <application
+        android:icon="@drawable/icon"
+        android:roundIcon="@drawable/icon"
+        android:allowBackup="true"
+        android:label="لعلها المنجيه"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity
+            android:name=".PrayerSettingsActivity"
+            android:exported="false" />
+        
+        <activity
+            android:name=".SettingsActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+
+        <activity
+            android:name=".QuranActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+            <activity android:name=".AdhkarActivity" />
+
+        <activity
+            android:name=".TasbeehActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+    
+        <activity
+            android:name=".QiblaActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".StoriesActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+    <activity
+        android:name=".StoryDetailActivity"
+        android:screenOrientation="portrait"
+        android:exported="false" />
+
+    <activity
+        android:name=".SeerahActivity"
+        android:screenOrientation="portrait"
+        android:exported="false" />
+
+        <activity android:name=".AudioLibraryActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".AudioEpisodesActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".IslamicQuestionsActivity" android:screenOrientation="portrait" android:exported="false" />
+
+        <receiver
+            android:name=".PrayerNotificationReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".PrayerBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+        <service
+        android:name=".AdhanPlaybackService"
+        android:exported="false"
+        android:foregroundServiceType="mediaPlayback" />
+
+        <service
+            android:name=".QuranAudioService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+</application>
+
+</manifest>

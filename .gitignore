@@ -1,0 +1,16 @@
+.gradle/
+build/
+app/build/
+apk_check/
+backup/
+*.apk
+*.aab
+*.bak
+*_backup.java
+*.before_crash_debug
+*.before_*
+MainActivity_*_*.java
+*.backup
+*_BACKUP
+*.FINAL_BACKUP
+*.backup_*
